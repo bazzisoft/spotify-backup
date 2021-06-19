@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse 
+import argparse
 import codecs
 import http.client
 import http.server
@@ -18,11 +18,11 @@ logging.basicConfig(level=20, datefmt='%I:%M:%S', format='[%(asctime)s] %(messag
 
 
 class SpotifyAPI:
-	
+
 	# Requires an OAuth token.
 	def __init__(self, auth):
 		self._auth = auth
-	
+
 	# Gets a resource from the Spotify API and returns the object.
 	def get(self, url, params={}, tries=3):
 		# Construct the correct URL.
@@ -30,7 +30,7 @@ class SpotifyAPI:
 			url = 'https://api.spotify.com/v1/' + url
 		if params:
 			url += ('&' if '?' in url else '?') + urllib.parse.urlencode(params)
-	
+
 		# Try the sending off the request a specified number of times before giving up.
 		for _ in range(tries):
 			try:
@@ -44,7 +44,7 @@ class SpotifyAPI:
 				time.sleep(2)
 				logging.info('Trying again...')
 		sys.exit(1)
-	
+
 	# The Spotify API breaks long lists into multiple pages. This method automatically
 	# fetches all pages and joins them, returning in a single list of objects.
 	def list(self, url, params={}):
@@ -60,7 +60,7 @@ class SpotifyAPI:
 			response = self.get(response['next'])
 			items += response['items']
 		return items
-	
+
 	# Pops open a browser window for a user to log in and authorize API access.
 	@staticmethod
 	def authorize(client_id, scope):
@@ -68,31 +68,31 @@ class SpotifyAPI:
 			'response_type': 'token',
 			'client_id': client_id,
 			'scope': scope,
-			'redirect_uri': 'http://127.0.0.1:{}/redirect'.format(SpotifyAPI._SERVER_PORT)
+			'redirect_uri': 'http://wily:{}/redirect'.format(SpotifyAPI._SERVER_PORT)
 		})
 		logging.info(f'Logging in (click if it doesn\'t open automatically): {url}')
 		webbrowser.open(url)
-	
+
 		# Start a simple, local HTTP server to listen for the authorization token... (i.e. a hack).
-		server = SpotifyAPI._AuthorizationServer('127.0.0.1', SpotifyAPI._SERVER_PORT)
+		server = SpotifyAPI._AuthorizationServer('0.0.0.0', SpotifyAPI._SERVER_PORT)
 		try:
 			while True:
 				server.handle_request()
 		except SpotifyAPI._Authorization as auth:
 			return SpotifyAPI(auth.access_token)
-	
+
 	# The port that the local server listens on. Don't change this,
 	# as Spotify only will redirect to certain predefined URLs.
 	_SERVER_PORT = 43019
-	
+
 	class _AuthorizationServer(http.server.HTTPServer):
 		def __init__(self, host, port):
 			http.server.HTTPServer.__init__(self, (host, port), SpotifyAPI._AuthorizationHandler)
-		
+
 		# Disable the default error handling.
 		def handle_error(self, request, client_address):
 			raise
-	
+
 	class _AuthorizationHandler(http.server.BaseHTTPRequestHandler):
 		def do_GET(self):
 			# The Spotify API has redirected here, but access_token is hidden in the URL fragment.
@@ -102,7 +102,7 @@ class SpotifyAPI:
 				self.send_header('Content-Type', 'text/html')
 				self.end_headers()
 				self.wfile.write(b'<script>location.replace("token?" + location.hash.slice(1));</script>')
-			
+
 			# Read access_token and use an exception to kill the server listening...
 			elif self.path.startswith('/token?'):
 				self.send_response(200)
@@ -113,14 +113,14 @@ class SpotifyAPI:
 				access_token = re.search('access_token=([^&]*)', self.path).group(1)
 				logging.info(f'Received access token from Spotify: {access_token}')
 				raise SpotifyAPI._Authorization(access_token)
-			
+
 			else:
 				self.send_error(404)
-		
+
 		# Disable the default logging.
 		def log_message(self, format, *args):
 			pass
-	
+
 	class _Authorization(Exception):
 		def __init__(self, access_token):
 			self.access_token = access_token
@@ -138,19 +138,19 @@ def main():
 	parser.add_argument('--format', default='txt', choices=['json', 'txt'], help='output format (default: txt)')
 	parser.add_argument('file', help='output filename', nargs='?')
 	args = parser.parse_args()
-	
+
 	# If they didn't give a filename, then just prompt them. (They probably just double-clicked.)
 	while not args.file:
 		args.file = input('Enter a file name (e.g. playlists.txt): ')
 		args.format = args.file.split('.')[-1]
-	
+
 	# Log into the Spotify API.
 	if args.token:
 		spotify = SpotifyAPI(args.token)
 	else:
-		spotify = SpotifyAPI.authorize(client_id='5c098bcc800e45d49e476265bc9b6934',
+		spotify = SpotifyAPI.authorize(client_id='f273705a8fa44a1f9b962c355c5ee6e5',
 		                               scope='playlist-read-private playlist-read-collaborative user-library-read')
-	
+
 	# Get the ID of the logged in user.
 	logging.info('Loading user info...')
 	me = spotify.get('me')
@@ -175,14 +175,14 @@ def main():
 			logging.info('Loading playlist: {name} ({tracks[total]} songs)'.format(**playlist))
 			playlist['tracks'] = spotify.list(playlist['tracks']['href'], {'limit': 100})
 		playlists += playlist_data
-	
+
 	# Write the file.
 	logging.info('Writing files...')
 	with open(args.file, 'w', encoding='utf-8') as f:
 		# JSON file.
 		if args.format == 'json':
 			json.dump(playlists, f)
-		
+
 		# Tab-separated file.
 		else:
 			for playlist in playlists:
