@@ -174,9 +174,11 @@ def main():
 
         # List all tracks in each playlist
         for playlist in playlist_data:
+            if playlist is None:
+                continue
             logging.info('Loading playlist: {name} ({tracks[total]} songs)'.format(**playlist))
             playlist['tracks'] = spotify.list(playlist['tracks']['href'], {'limit': 100})
-        playlists += playlist_data
+            playlists.append(playlist)
 
     # Write the file.
     logging.info('Writing files...')
