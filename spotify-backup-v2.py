@@ -5,10 +5,10 @@ Spotify Backup Script (v2) — uses the spotipy library.
 Backs up liked songs, playlists, saved episodes and followed podcasts to a JSON file.
 
 Usage:
-    # First run — authenticate interactively (opens browser, caches token):
-    python spotify-backup-v2.py --auth --client-id ID --client-secret SECRET output.json
+    # First run — prompts you to visit a URL and paste back the redirect:
+    python spotify-backup-v2.py --client-id ID --client-secret SECRET output.json
 
-    # Subsequent automated runs — uses cached refresh token, no browser needed:
+    # Subsequent runs — uses cached refresh token, no interaction needed:
     python spotify-backup-v2.py --client-id ID --client-secret SECRET output.json
 
     # Customise what to back up and where the token cache lives:
@@ -19,7 +19,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 
 import spotipy
 from spotipy.oauth2 import CacheFileHandler, SpotifyOAuth
@@ -233,11 +232,6 @@ def main():
         description="Back up Spotify liked songs, playlists and episodes to JSON using spotipy."
     )
     parser.add_argument(
-        "--auth",
-        action="store_true",
-        help="Run interactive authentication (opens browser). Only needed once to create the token cache.",
-    )
-    parser.add_argument(
         "--client-id",
         required=True,
         help="Spotify app Client ID",
@@ -268,8 +262,10 @@ def main():
     sections = [s.strip() for s in args.dump.split(",")]
 
     # Build the OAuth manager.
-    # --auth opens a browser for the initial login; without it the script
-    # runs headless using the cached refresh token.
+    # open_browser=False ensures spotipy never tries to launch a browser or
+    # start a local HTTP server.  On first run (no cached token) it will
+    # print a URL and prompt the user to paste the redirect URL.
+    # On subsequent runs the cached refresh token is used automatically.
     cache_handler = CacheFileHandler(cache_path=args.cache_path)
     auth_manager = SpotifyOAuth(
         client_id=args.client_id,
@@ -277,18 +273,8 @@ def main():
         redirect_uri=args.redirect_uri,
         scope=SCOPES,
         cache_handler=cache_handler,
-        open_browser=args.auth,
+        open_browser=False,
     )
-
-    # When running headless, verify that a cached token exists.
-    if not args.auth:
-        token_info = cache_handler.get_cached_token()
-        if not token_info:
-            log.error(
-                "No cached token found. Run once with --auth to authenticate "
-                "interactively, then re-run without --auth for automated use."
-            )
-            sys.exit(1)
 
     sp = spotipy.Spotify(auth_manager=auth_manager)
 
