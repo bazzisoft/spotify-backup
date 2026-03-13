@@ -2,3 +2,5 @@
 *.json
 __pycache__/*
 /vscode.code-workspace
+/venv/
+/.cache
